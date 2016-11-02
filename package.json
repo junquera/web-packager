@@ -1,0 +1,11 @@
+{
+  "name": "webpak",
+  "version": "0.0.1",
+  "description": "Web packager",
+  "main": "main.js",
+  "dependencies": {
+    "fs": "latest",
+    "uglifyjs": "latest",
+    "uglifycss": "latest"
+  }
+}

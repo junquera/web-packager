@@ -1,6 +1,7 @@
 const fs = require('fs');
 const ugjs = require('uglifyjs');
 const ugcss = require('uglifycss');
+const Q = require('q');
 
 var js_pattern = /<script.*src="([^"]*)"/g;
 var css_pattern = /<link.*href="([^"]*.css)"/g;
@@ -34,30 +35,36 @@ function cleanDirective(directive, callback){
   }
 }
 
+function getScript(sPath){
+  var promise = Q.defer();
+  readFile(sPath, function(sd){
+    if(sd.match(/^[^.]+\.directive/)){
+      cleanDirective(sd, function(result){
+        promise.resolve(result);
+      });
+    } else {
+      promise.resolve([sPath, sd]);
+    }
+  });
+  return promise.promise;
+}
 readFile(process.argv[2], function(data){
 
   var scriptPaths = getRegSults(data, js_pattern);
   var stylePaths = getRegSults(data, css_pattern);
   var imagePaths = getRegSults(data, img_pattern);
 
-  var scripts = {};
-
-  scriptPaths.forEach(function(s){
-    readFile(s, function(sd){
-      if(sd.match(/^[^.]+\.directive/)){
-        cleanDirective(sd, function(result){
-          scripts[s] = result;
-        });
-      } else {
-        scripts[s] = sd;
-      }
-    });
+  var scripts = scriptPaths.map(function(s){
+    return getScript(s);
   });
 
   stylePaths.forEach(function(s) {
 
   });
 
+  Q.allSettled(scripts).then(function(result){
+    result.forEach((r)=>console.log(r.value));
+  });
 });
 
 

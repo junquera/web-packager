@@ -4,6 +4,7 @@
   "description": "Web packager",
   "main": "main.js",
   "dependencies": {
+    "q": "latest",
     "fs": "latest",
     "uglifyjs": "latest",
     "uglifycss": "latest"

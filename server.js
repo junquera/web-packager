@@ -20,12 +20,46 @@ function readFile(filePath, callback){
   });
 }
 
+function cleanDirective(directive, callback){
+  if(directive.match(/templateUrl\:\s?['|"]([^'"]+)/)){
+    var template = directive.match(/templateUrl\:\s?['"]([^'"]+)/)[1];
+    readFile(template, function(t){
+      var taux = t.replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/<!--.*-->/, "").replace(/(\r?\n|\r)\s*/g, " ");
+      var aux = directive.replace('templateUrl', 'template');
+      aux = aux.replace(/(template\:\s?['"])([^'"]+)/, "$1"+taux);
+      callback(aux);
+    });
+  } else {
+    callback(directive);
+  }
+}
+
 readFile(process.argv[2], function(data){
-  // console.log(data);
-  getRegSults(data, js_pattern).forEach((x)=>console.log(x));
-  getRegSults(data, css_pattern).forEach((x)=>console.log(x));
-  getRegSults(data, img_pattern).forEach((x)=>console.log(x));
+
+  var scriptPaths = getRegSults(data, js_pattern);
+  var stylePaths = getRegSults(data, css_pattern);
+  var imagePaths = getRegSults(data, img_pattern);
+
+  var scripts = {};
+
+  scriptPaths.forEach(function(s){
+    readFile(s, function(sd){
+      if(sd.match(/^[^.]+\.directive/)){
+        cleanDirective(sd, function(result){
+          scripts[s] = result;
+        });
+      } else {
+        scripts[s] = sd;
+      }
+    });
+  });
+
+  stylePaths.forEach(function(s) {
+
+  });
+
 });
+
 
 // const testFolder = './tests/';
 // const fs = require('fs');

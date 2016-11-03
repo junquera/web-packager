@@ -35,19 +35,30 @@ function cleanDirective(directive, callback){
   }
 }
 
-function getScript(sPath){
+function getScript(sPath) {
   var promise = Q.defer();
   readFile(sPath, function(sd){
     if(sd.match(/^[^.]+\.directive/)){
       cleanDirective(sd, function(result){
-        promise.resolve(result);
+        // promise.resolve({'path': sPath, 'value': sd});
+        promise.resolve(sd);
       });
     } else {
-      promise.resolve([sPath, sd]);
+      // promise.resolve({'path': sPath, 'value': sd});
+      promise.resolve(sd);
     }
   });
   return promise.promise;
 }
+
+function getStyle(sPath) {
+  var promise = Q.defer();
+  readFile(sPath, function(sd){
+    promise.resolve(sd);
+  });
+  return promise.promise;
+}
+
 readFile(process.argv[2], function(data){
 
   var scriptPaths = getRegSults(data, js_pattern);
@@ -58,12 +69,15 @@ readFile(process.argv[2], function(data){
     return getScript(s);
   });
 
-  stylePaths.forEach(function(s) {
+  var styles = stylePaths.map(function(s){
+    return getStyle(s);
+  })
 
-  });
-
-  Q.allSettled(scripts).then(function(result){
-    result.forEach((r)=>console.log(r.value));
+  Q.allSettled(scripts).then(function(resultScripts){
+    resultScripts.forEach((r )=>console.log(r.value));
+    Q.allSettled(styles).then(function(resultStyles){
+      resultStyles.forEach((r )=>console.log(r.value));
+    });
   });
 });
 

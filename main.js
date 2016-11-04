@@ -40,11 +40,13 @@ function cleanDirective(directive, callback){
   // TODO Replace IMAGES and SCRIPTS
   if(directive.match(/templateUrl\:\s?['|"]([^'"]+)/)){
     var template = directive.match(/templateUrl\:\s?['"]([^'"]+)/)[1];
-    readTextFile(template, function(t){
-      var taux = t.replace(/["']/g, '\\$&').replace(/<\!--[^>]*-->/g, "").replace(/(\r?\n|\r)\s*/g, " ");
-      var aux = directive.replace('templateUrl', 'template');
-      aux = aux.replace(/(template\:\s?['"])([^'"]+)/, "$1"+taux);
-      callback(aux);
+    readTextFile(template, function(tmp){
+      autoContent(tmp).then(function(t){
+        var taux = t.replace(/["']/g, '\\$&').replace(/<\!--[^>]*-->/g, "").replace(/(\r?\n|\r)\s*/g, " ");
+        var aux = directive.replace('templateUrl', 'template');
+        aux = aux.replace(/(template\:\s?['"])([^'"]+)/, "$1"+taux);
+        callback(aux);
+      });
     });
   } else {
     callback(directive);
@@ -97,6 +99,7 @@ function getImage(iPath){
 }
 
 function autoContent(htmlDocument){
+  var promise = Q.defer();
 
   var scriptPaths = getRegSults(htmlDocument, js_pattern);
   var stylePaths = getRegSults(htmlDocument, css_pattern);
@@ -114,15 +117,11 @@ function autoContent(htmlDocument){
     return getImage(i);
   });
 
-  Q.allSettled(scripts).then(function(resultScripts){
-    Q.allSettled(styles).then(function(resultStyles){
-      Q.allSettled(images).then(function(resultImages){
-        // resultScripts.forEach((r)=>console.log(r.value));
-        // resultStyles.forEach((r)=>console.log(r.value));
-        // resultImages.forEach((r)=>console.log(r.value));
+  Q.allSettled(scripts).done(function(resultScripts){
+    Q.allSettled(styles).done(function(resultStyles){
+      Q.allSettled(images).done(function(resultImages){
         var result = htmlDocument;
         result = result.replace(/<!--.*-->\n*\s*/g, "").replace(/<script.*src.*<\/script>\n*\s*/g, '').replace(/<link.*>\n*\s*/g, '').replace(/(<\/head>)/, '<style>{style}</style>\n<script>{script}</script>\n$1');
-
         var aux = "";
 
         resultStyles.forEach((s)=>aux+=s.value.value);
@@ -130,17 +129,23 @@ function autoContent(htmlDocument){
 
         aux = "";
         resultScripts.forEach((s)=>aux+=s.value.value);
+
         result = result.replace("{script}", aux + "\n");
 
+        promise.resolve(result);
 
-        console.log(result);
       });
     });
   });
+  return promise.promise;
 }
 
 // Reading index.html
-readTextFile(process.argv[2], autoContent);
+readTextFile(process.argv[2], function(file){
+  var minified = autoContent(file).then(function(x){
+    console.log(x);
+  });
+});
 
 
 // const testFolder = './tests/';

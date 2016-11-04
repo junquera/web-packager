@@ -41,7 +41,7 @@ function cleanDirective(directive, callback){
   if(directive.match(/templateUrl\:\s?['|"]([^'"]+)/)){
     var template = directive.match(/templateUrl\:\s?['"]([^'"]+)/)[1];
     readTextFile(template, function(t){
-      var taux = t.replace(/"/g, '\\"').replace(/'/g, "\\'").replace(/<!--.*-->/, "").replace(/(\r?\n|\r)\s*/g, " ");
+      var taux = t.replace(/["']/g, '\\$&').replace(/<\!--[^>]*-->/g, "").replace(/(\r?\n|\r)\s*/g, " ");
       var aux = directive.replace('templateUrl', 'template');
       aux = aux.replace(/(template\:\s?['"])([^'"]+)/, "$1"+taux);
       callback(aux);
@@ -57,11 +57,11 @@ function getScript(sPath) {
     if(sd.match(/^[^.]+\.directive/)){
       cleanDirective(sd, function(result){
         // promise.resolve({'path': sPath, 'value': sd});
-        promise.resolve(sd);
+        promise.resolve({"element":sPath, "value": result});
       });
     } else {
       // promise.resolve({'path': sPath, 'value': sd});
-      promise.resolve(sd);
+      promise.resolve({"element":sPath, "value": sd});
     }
   });
   return promise.promise;
@@ -70,7 +70,7 @@ function getScript(sPath) {
 function getStyle(sPath) {
   var promise = Q.defer();
   readTextFile(sPath, function(sd){
-    promise.resolve(sd);
+    promise.resolve({"element":sPath, "value": sd});
   });
   return promise.promise;
 }
@@ -91,7 +91,7 @@ function getImage(iPath){
         image = "data:image/svg+xml;base64," + image;
         break;
     }
-    promise.resolve(image);
+    promise.resolve({"element": iPath, "value": image});
   });
   return promise.promise;
 }
@@ -115,16 +115,31 @@ function autoContent(htmlDocument){
   });
 
   Q.allSettled(scripts).then(function(resultScripts){
-    resultScripts.forEach((r)=>console.log(r.value));
     Q.allSettled(styles).then(function(resultStyles){
-      resultStyles.forEach((r)=>console.log(r.value));
       Q.allSettled(images).then(function(resultImages){
-        resultImages.forEach((r)=>console.log(r.value));
+        // resultScripts.forEach((r)=>console.log(r.value));
+        // resultStyles.forEach((r)=>console.log(r.value));
+        // resultImages.forEach((r)=>console.log(r.value));
+        var result = htmlDocument;
+        result = result.replace(/<!--.*-->\n*\s*/g, "").replace(/<script.*src.*<\/script>\n*\s*/g, '').replace(/<link.*>\n*\s*/g, '').replace(/(<\/head>)/, '<style>{style}</style>\n<script>{script}</script>\n$1');
+
+        var aux = "";
+
+        resultStyles.forEach((s)=>aux+=s.value.value);
+        result = result.replace("{style}", aux + "\n");
+
+        aux = "";
+        resultScripts.forEach((s)=>aux+=s.value.value);
+        result = result.replace("{script}", aux + "\n");
+
+
+        console.log(result);
       });
     });
   });
 }
 
+// Reading index.html
 readTextFile(process.argv[2], autoContent);
 
 

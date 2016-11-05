@@ -2,6 +2,7 @@ const fs = require('fs');
 const ugjs = require('uglifyjs');
 const ugcss = require('uglifycss');
 const Q = require('q');
+const http  = require('http');
 
 var js_pattern = /<script.*src="([^"]*)"/g;
 var css_pattern = /<link.*href="([^"]*.css)"/g;
@@ -36,7 +37,7 @@ function readBinaryFile(filePath, callback){
 }
 
 // Auto content AngularJS directives
-function cleanDirective(directive, callback){
+function autocontentTemplateURLs(directive, callback){
   // TODO Replace IMAGES and SCRIPTS
   if(directive.match(/templateUrl\:\s?['|"]([^'"]+)/)){
     var template = directive.match(/templateUrl\:\s?['"]([^'"]+)/)[1];
@@ -55,47 +56,113 @@ function cleanDirective(directive, callback){
 
 function getScript(sPath) {
   var promise = Q.defer();
-  readTextFile(sPath, function(sd){
-    if(sd.match(/^[^.]+\.directive/)){
-      cleanDirective(sd, function(result){
-        // promise.resolve({'path': sPath, 'value': sd});
-        promise.resolve({"element":sPath, "value": result});
+  if(sPath.match(/^http[s]?/)) {
+
+    var options = {
+      port: 80,
+      host: sPath.match(/^http[s]?:\/\/([^\/]*)/)[1],
+      path: sPath.match(/^http[s]?:\/\/[^\/]*(\/.*)$/)[1]
+    };
+    var req = http.get(options, function(response){
+      var result = '';
+      response.on('data', function(data){
+        result += data;
+      }).on("error", function(e){
+        console.error("Error retrieving " + sPath + ": ", e.message);
+      }).on('end', () => {
+        buildScript(result.toString(), (value)=>{
+          promise.resolve({"element":sPath, "value": value});
+        });
       });
-    } else {
-      // promise.resolve({'path': sPath, 'value': sd});
-      promise.resolve({"element":sPath, "value": sd});
-    }
-  });
+    });
+  } else {
+    readTextFile(sPath, function(sd){
+      buildScript(sd, (value)=>{
+        promise.resolve({"element":sPath, "value": value});
+      });
+    });
+  }
   return promise.promise;
+}
+
+function buildScript(script, callback){
+  if(script.match(/^[^.]+\.directive/)){
+    autocontentTemplateURLs(script, (result)=>{
+      callback(result);
+    });
+  } else {
+    callback(script);
+  }
 }
 
 function getStyle(sPath) {
   var promise = Q.defer();
-  readTextFile(sPath, function(sd){
-    promise.resolve({"element":sPath, "value": sd});
-  });
+  if(sPath.match(/^http[s]?/)) {
+    var options = {
+      port: 80,
+      host: sPath.match(/^http[s]?:\/\/([^\/]*)/)[1],
+      path: sPath.match(/^http[s]?:\/\/[^\/]*(\/.*)$/)[1]
+    };
+    var req = http.get(options, function(response){
+      var result = '';
+      response.on('data', function(data){
+        result += data;
+      }).on("error", function(e){
+        console.error("Error retrieving " + sPath + ": ", e.message);
+      }).on('end', () => {
+        promise.resolve({"element":sPath, "value": result.toString()});
+      });
+    });
+  } else {
+    readTextFile(sPath, function(sd){
+      promise.resolve({"element":sPath, "value": sd});
+    });
+  }
   return promise.promise;
 }
 
 function getImage(iPath){
   var promise = Q.defer();
-  readBinaryFile(iPath, function(id){
-    var image = Base64.encode(id);
-    switch (iPath.toLowerCase().match(/\.([a-z]+)$/)[1]) {
-      case 'png':
-        image = "data:image/png;base64," + image;
-        break;
-      case 'jpg':
-      case 'jpeg':
-        image = "data:image/jpg;base64," + image;
-        break;
-      case 'svg':
-        image = "data:image/svg+xml;base64," + image;
-        break;
+  var format = iPath.toLowerCase().match(/\.([a-z]+)$/)[1];
+  if(iPath.match(/^http[s]?/)) {
+    var options = {
+      port: 80,
+      host: sPath.match(/^http[s]?:\/\/([^\/]*)/)[1],
+      path: sPath.match(/^http[s]?:\/\/[^\/]*(\/.*)$/)[1]
+    };
+    var req = http.get(options, function(response){
+      var result = '';
+      response.on('data', function(data){
+        result += data;
+      }).on("error", function(e){
+        console.error("Error retrieving " + sPath + ": ", e.message);
+      }).on('end', () => {
+        promise.resolve({"element":sPath, "value": buildImage(result, format)});
+      });
+    });
+  } else {
+    readBinaryFile(iPath, function(id){
+      promise.resolve({"element": iPath, "value": buildImage(id, format)});
+    });
     }
-    promise.resolve({"element": iPath, "value": image});
-  });
   return promise.promise;
+}
+
+function buildImage(id, format){
+  var image = Base64.encode(id);
+  switch (format) {
+    case 'png':
+      image = "data:image/png;base64," + image;
+      break;
+    case 'jpg':
+    case 'jpeg':
+      image = "data:image/jpg;base64," + image;
+      break;
+    case 'svg':
+      image = "data:image/svg+xml;base64," + image;
+      break;
+  }
+  return image;
 }
 
 function autoContent(htmlDocument){
@@ -121,16 +188,14 @@ function autoContent(htmlDocument){
     Q.allSettled(styles).done(function(resultStyles){
       Q.allSettled(images).done(function(resultImages){
         var result = htmlDocument;
-        result = result.replace(/<!--.*-->\n*\s*/g, "").replace(/<script.*src.*<\/script>\n*\s*/g, '').replace(/<link.*>\n*\s*/g, '').replace(/(<\/head>)/, '<style>{style}</style>\n<script>{script}</script>\n$1');
-        var aux = "";
 
-        resultStyles.forEach((s)=>aux+=s.value.value);
-        result = result.replace("{style}", aux + "\n");
+        resultStyles.forEach((s)=>{
+          result = result.replace(new RegExp('<link.*href="' + s.value.element + '".*>'), '<style>\n' + s.value.value + '\n</style>\n');
+        });
 
-        aux = "";
-        resultScripts.forEach((s)=>aux+=s.value.value);
-
-        result = result.replace("{script}", aux + "\n");
+        resultScripts.forEach((s)=>{
+          result = result.replace(new RegExp('<script.*src="' + s.value.element + '".*<\/script>', 'm'), '<script>\n' + s.value.value + '\n</script>\n');
+        });
 
         promise.resolve(result);
 
@@ -143,7 +208,7 @@ function autoContent(htmlDocument){
 // Reading index.html
 readTextFile(process.argv[2], function(file){
   var minified = autoContent(file).then(function(x){
-    console.log(x);
+    process.stdout.write(x);
   });
 });
 

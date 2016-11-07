@@ -1,8 +1,8 @@
 const fs = require('fs');
-const uglifyjs = require('uglifyjs');
-const uglifycss = require('uglifycss');
 const Q = require('q');
 const http  = require('http');
+const uglifyjs = require('uglifyjs');
+const uglifycss = require('uglifycss');
 
 var js_pattern = /<script.*src="([^"]*)"/g;
 var css_pattern = /<link.*href="([^"]*.css)"/g;
@@ -86,7 +86,7 @@ function getScript(sPath) {
 }
 
 function buildScript(script, callback){
-  if(script.match(/^[^.]+\.(directive|config)/)){
+  if(script.match(/^[^.]+\.directive/)){
     autocontentTemplateURLs(script, (result)=>{
       callback(result);
     });
@@ -194,7 +194,10 @@ function autoContent(htmlDocument){
         resultScripts.forEach((s)=>{
           console.warn("Processing: ", s.value.element);
           var code = s.value.value;
-          result = result.replace(new RegExp('<script.*src="' + s.value.element + '".*<\/script>', 'm'), '<script>\n' + code + '\n</script>\n');
+          // TODO Hay que arreglar problemas si el javascript contiene regexps...
+          var id = Math.floor(Math.random()*1000) + 1;
+          // There is a problem with '$' symbol in regex. We delete it for replace after
+          result = result.replace(new RegExp('<script.*src="' + s.value.element + '".*<\/script>', 'm'), '<script>\n' + code.replace(new RegExp("\\$", "g"), id + "_") + '\n</script>\n').replace(new RegExp(id+ "_", "g"), "\$");
         });
 
         resultStyles.forEach((s)=>{

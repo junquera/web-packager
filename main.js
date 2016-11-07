@@ -1,6 +1,6 @@
 const fs = require('fs');
-const ugjs = require('uglifyjs');
-const ugcss = require('uglifycss');
+const uglifyjs = require('uglifyjs');
+const uglifycss = require('uglifycss');
 const Q = require('q');
 const http  = require('http');
 
@@ -38,7 +38,7 @@ function readBinaryFile(filePath, callback){
 
 // Auto content AngularJS directives
 function autocontentTemplateURLs(directive, callback){
-  // TODO Replace IMAGES and SCRIPTS
+  // TODO Content all
   if(directive.match(/templateUrl\:\s?['|"]([^'"]+)/)){
     var template = directive.match(/templateUrl\:\s?['"]([^'"]+)/)[1];
     readTextFile(template, function(tmp){
@@ -86,7 +86,7 @@ function getScript(sPath) {
 }
 
 function buildScript(script, callback){
-  if(script.match(/^[^.]+\.directive/)){
+  if(script.match(/^[^.]+\.(directive|config)/)){
     autocontentTemplateURLs(script, (result)=>{
       callback(result);
     });
@@ -96,6 +96,7 @@ function buildScript(script, callback){
 }
 
 function getStyle(sPath) {
+  // TODO Compress style inline fonts and images
   var promise = Q.defer();
   if(sPath.match(/^http[s]?/)) {
     var options = {
@@ -166,6 +167,7 @@ function buildImage(id, format){
 }
 
 function autoContent(htmlDocument){
+
   var promise = Q.defer();
 
   var scriptPaths = getRegSults(htmlDocument, js_pattern);
@@ -189,12 +191,21 @@ function autoContent(htmlDocument){
       Q.allSettled(images).done(function(resultImages){
         var result = htmlDocument;
 
+        resultScripts.forEach((s)=>{
+          console.warn("Processing: ", s.value.element);
+          var code = s.value.value;
+          result = result.replace(new RegExp('<script.*src="' + s.value.element + '".*<\/script>', 'm'), '<script>\n' + code + '\n</script>\n');
+        });
+
         resultStyles.forEach((s)=>{
+          var code =  s.value.value;
+          console.warn("Processing: ", s.value.element);
           result = result.replace(new RegExp('<link.*href="' + s.value.element + '".*>'), '<style>\n' + s.value.value + '\n</style>\n');
         });
 
-        resultScripts.forEach((s)=>{
-          result = result.replace(new RegExp('<script.*src="' + s.value.element + '".*<\/script>', 'm'), '<script>\n' + s.value.value + '\n</script>\n');
+        resultImages.forEach((i)=>{
+          console.warn("Processing: ", i.value.element);
+          result = result.replace(new RegExp('(<img.*src=")(' + i.value.element + ')(")'), "$1" + i.value.value + "$3");
         });
 
         promise.resolve(result);
@@ -206,17 +217,9 @@ function autoContent(htmlDocument){
 }
 
 // Reading index.html
-readTextFile(process.argv[2], function(file){
+var filePath = process.argv[2];
+readTextFile(filePath, function(file){
   var minified = autoContent(file).then(function(x){
     process.stdout.write(x);
   });
 });
-
-
-// const testFolder = './tests/';
-// const fs = require('fs');
-// fs.readdir(testFolder, (err, files) => {
-//   files.forEach(file => {
-//     console.log(file);
-//   });
-// })

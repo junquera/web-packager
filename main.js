@@ -86,7 +86,7 @@ function getScript(sPath) {
 }
 
 function buildScript(script, callback){
-  if(script.match(/^[^.]+\.directive/)){
+  if(script.match(/^[^.]+\.(directive|config)/)){
     autocontentTemplateURLs(script, (result)=>{
       callback(result);
     });
@@ -194,9 +194,9 @@ function autoContent(htmlDocument){
         resultScripts.forEach((s)=>{
           console.warn("Processing: ", s.value.element);
           var code = s.value.value;
-          // TODO Hay que arreglar problemas si el javascript contiene regexps...
+          
+          // There is a problem with '$' symbol in regex. We delete it for replace after. For avoid 'collisions', we add an identifier before
           var id = Math.floor(Math.random()*1000) + 1;
-          // There is a problem with '$' symbol in regex. We delete it for replace after
           result = result.replace(new RegExp('<script.*src="' + s.value.element + '".*<\/script>', 'm'), '<script>\n' + code.replace(new RegExp("\\$", "g"), id + "_") + '\n</script>\n').replace(new RegExp(id+ "_", "g"), "\$");
         });
 

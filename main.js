@@ -4,6 +4,8 @@ const http  = require('http');
 const uglifyjs = require('uglifyjs');
 const uglifycss = require('uglifycss');
 
+var compress = true;
+
 var js_pattern = /<script.*src="([^"]*)"/g;
 var css_pattern = /<link.*href="([^"]*.css)"/g;
 var img_pattern = /<img.*src="([^"]*)"/g;
@@ -97,6 +99,7 @@ function buildScript(script, callback){
 
 function getStyle(sPath) {
   // TODO Compress style inline fonts and images
+  // TODO Also read fonts
   var promise = Q.defer();
   if(sPath.match(/^http[s]?/)) {
     var options = {
@@ -190,11 +193,16 @@ function autoContent(htmlDocument){
     Q.allSettled(styles).done(function(resultStyles){
       Q.allSettled(images).done(function(resultImages){
         var result = htmlDocument;
-
+        
         resultScripts.forEach((s)=>{
           console.warn("Processing: ", s.value.element);
           var code = s.value.value;
-          
+          if(compress){
+            try{
+              var aux = uglifyjs.minify(code, {fromString: true, mangle: {toplevel: true}});
+              code = aux.code;
+            } catch(err){ console.error(err); }
+          }
           // There is a problem with '$' symbol in regex. We delete it for replace after. For avoid 'collisions', we add an identifier before
           var id = Math.floor(Math.random()*1000) + 1;
           result = result.replace(new RegExp('<script.*src="' + s.value.element + '".*<\/script>', 'm'), '<script>\n' + code.replace(new RegExp("\\$", "g"), id + "_") + '\n</script>\n').replace(new RegExp(id+ "_", "g"), "\$");
@@ -203,7 +211,7 @@ function autoContent(htmlDocument){
         resultStyles.forEach((s)=>{
           var code =  s.value.value;
           console.warn("Processing: ", s.value.element);
-          result = result.replace(new RegExp('<link.*href="' + s.value.element + '".*>'), '<style>\n' + s.value.value + '\n</style>\n');
+          result = result.replace(new RegExp('<link.*href="' + s.value.element + '"[^>]*>'), '<style>\n' + s.value.value + '\n</style>\n');
         });
 
         resultImages.forEach((i)=>{

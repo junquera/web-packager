@@ -193,15 +193,12 @@ function autoContent(htmlDocument){
     Q.allSettled(styles).done(function(resultStyles){
       Q.allSettled(images).done(function(resultImages){
         var result = htmlDocument;
-        
+
         resultScripts.forEach((s)=>{
           console.warn("Processing: ", s.value.element);
           var code = s.value.value;
           if(compress){
-            try{
-              var aux = uglifyjs.minify(code, {fromString: true, mangle: {toplevel: true}});
-              code = aux.code;
-            } catch(err){ console.error(err); }
+            code = code.replace(/\/\*\**.*\*\//, '').replace(/\/\/[^\n]*\n/, '').replace('\n\s*', '');
           }
           // There is a problem with '$' symbol in regex. We delete it for replace after. For avoid 'collisions', we add an identifier before
           var id = Math.floor(Math.random()*1000) + 1;
@@ -211,7 +208,10 @@ function autoContent(htmlDocument){
         resultStyles.forEach((s)=>{
           var code =  s.value.value;
           console.warn("Processing: ", s.value.element);
-          result = result.replace(new RegExp('<link.*href="' + s.value.element + '"[^>]*>'), '<style>\n' + s.value.value + '\n</style>\n');
+          if(compress){
+            code =  code.replace(/\/\*\**.*\*\//, '').replace('\n\s*', '');
+          }
+          result = result.replace(new RegExp('<link.*href="' + s.value.element + '"[^>]*>'), '<style>\n' + code + '\n</style>\n');
         });
 
         resultImages.forEach((i)=>{

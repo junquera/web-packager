@@ -17,10 +17,12 @@ node webpackage/main.js index.html
 
 ## Features
 
+- [x] Reduce js and css files size.
+
+- [ ] Integrate with uglify`[js|css]`
+
 - [ ] Run from any path
 
 - [ ] Add support for more files (i.e. fonts, css links...)
 
 - [ ] Add more formats
-
-- [ ] Integrate with uglify`[js|css]`
